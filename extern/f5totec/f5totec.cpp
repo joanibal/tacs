@@ -19,10 +19,16 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
 #include <string.h>
 
+// // Include FH5 header files
+// #include "FH5.h"
+
 // Include FH5 header files
-#include "FH5.h"
+#include "TACSFH5Loader.h"
+#include "TACSElementTypes.h"
+
 
 // Include Tecplot header files
 #include "TECIO.h"
@@ -146,9 +152,14 @@ int main( int argc, char * argv[] ){
 
   // Check if we're going to use strands or not
   int use_strands = 0;
+  int time_from_name = 0;
+  
   for ( int k = 0; k < argc; k++ ){
     if (strcmp(argv[k], "--use_strands") == 0){
       use_strands = 1;
+    }
+    if (strcmp(argv[k], "--time_from_name") == 0){
+      time_from_name = 1;
     }
   }
 
@@ -181,108 +192,211 @@ int main( int argc, char * argv[] ){
     strcpy(outfile, infile);
     strcpy(&outfile[i], ".plt");
     
-    printf("Trying to convert FH5 file %s to tecplot file %s\n", 
+    printf("*NEW* Trying to convert FH5 file %s to tecplot file %s\n", 
            infile, outfile);
 
     char data_info[] = "Created by f5totec";
     char dir_name[] = "."; // We'll be working with the current directory
     int tec_init = 0;      // Tecplot initialized flag
 
-    // Open the FH5 file for reading
-    FH5File * file = new FH5File(MPI_COMM_SELF);
-    file->incref();
+    // // Open the FH5 file for reading
+    // FH5File * file = new FH5File(MPI_COMM_SELF);
+    // file->incref();
+    // if (!file->openFile(infile)){
+    //   fprintf(stderr, "Failed to open the file %s\n", infile);
+    //   return (1);
+    // }
     
-    if (!file->openFile(infile)){
+        // Create the loader object
+    TACSFH5Loader *loader = new TACSFH5Loader();
+    loader->incref();
+
+
+    int fail = loader->loadData(infile);
+    if (fail){
       fprintf(stderr, "Failed to open the file %s\n", infile);
       return (1);
     }
 
+      // Retrieve all the data from the file including the 
+    // variables, connectivity and component numbers
+    int num_elements;
+    int *comp_nums, *ltypes, *ptr, *conn;
+    loader->getConnectivity(&num_elements, &comp_nums, &ltypes, &ptr, &conn);
+
+    const char *cname, *cvars;
+    int num_nodes_continuous, num_vals_continuous;
+    float *cdata;
+    loader->getContinuousData(&cname, &cvars, &num_nodes_continuous, &num_vals_continuous, &cdata);
+
+
+    const char *ename, *evars;
+    int edim1, edim2;
+    float *edata;
+    loader->getElementData(&ename, &evars, &edim1, &edim2, &edata);
+
+
+
+    int num_comp = loader->getNumComponents();
+    int num_points = num_nodes_continuous;
+    // int conn_dim = edim2;
+    int conn_dim = 8;
+    
+    // fprintf(stderr, "edim1:%d edim2:%d\n", edim1, edim2);
+    // fprintf(stderr, "num_nodes_continuous:%d num_vals_continuous:%d\n", num_nodes_continuous, num_vals_continuous);
+
+    double *data = NULL;
+    float *float_data = cdata;
+    int *element_comp_num = comp_nums;
+    
+    int num_variables = num_vals_continuous;
+
+    double solution_time = 0.0;
+    
+    if (time_from_name){
+    
+      // remove the file extension from outfile
+      strcpy(&outfile[i], "");
+      
+      float time; 
+
+      //from stack overflow https://stackoverflow.com/a/4073314/14227912
+      char *s = outfile; 
+      while (*s && !isdigit(*s)) s++; 
+      
+      if (*s)
+      {
+        sscanf(s, "%f", &time);  
+        printf("time %f\n", time); 
+
+      }    
+        
+      //put the file extension back   
+      strcpy(&outfile[i], ".plt");
+      
+      
+      // cast the time taken from the file and set solution_time
+      solution_time = (double)time;
+      printf("solution_time %f\n", solution_time); 
+
+    }
+    
+    //  Initialize the tecplot file with the variables
+    char *vars = new char[ strlen(cvars)+1 ];
+    strcpy(vars, cvars);
+    create_tec_file(data_info, vars,
+                outfile, dir_name, FULL);
+    tec_init = 1;
+    delete [] vars;
+
+  
+    // ------------------------------------------------------
     // Retrieve all the data from the file including the 
     // variables, connectivity and component numbers
-    double solution_time = 0.0;
-    int *element_comp_num = NULL;
-    int *conn = NULL;
-    double *data = NULL;
-    float *float_data = NULL;
-    int conn_dim = 0, num_elements = 0, num_points = 0, num_variables = 0;
-    file->firstZone();
-    do {
-      // Find the zone corresponding to all the data
-      const char *zone_name, *var_names;
-      FH5File::FH5DataType dtype;
-      int dim1, dim2;
+//     double solution_time = 0.0;
+//     int *element_comp_num = NULL;
+//     int *conn = NULL;
+//     double *data = NULL;
+//     float *float_data = NULL;
+//     int conn_dim = 0, num_elements = 0, num_points = 0, num_variables = 0;
+//     file->firstZone();
+//     do {
+//       // Find the zone corresponding to all the data
+//       const char *zone_name, *var_names;
+//       FH5File::FH5DataType dtype;
+//       int dim1, dim2;
 
-      if (!file->getZoneInfo(&zone_name, &var_names, &dtype, &dim1, &dim2)){
-        fprintf(stderr, "Error, zone not defined\n");
-        break;
-      }
+//       if (!file->getZoneInfo(&zone_name, &var_names, &dtype, &dim1, &dim2)){
+//         fprintf(stderr, "Error, zone not defined\n");
+//         break;
+//       }
     
-      if (strcmp(zone_name, "components") == 0){
-        void *vdata;
-        if (file->getZoneData(&zone_name, &var_names, &dtype,
-                              &vdata, &dim1, &dim2)){
-          element_comp_num = (int*)vdata;
-        }
-      }
-      else if (strcmp(zone_name, "connectivity") == 0){
-        num_elements = dim1;
-        conn_dim = dim2;
-        void *vdata;
-        if (file->getZoneData(&zone_name, &var_names, &dtype, 
-                              &vdata, &dim1, &dim2)){
-          conn = (int*)vdata;
-        }
-      }
-      else if (strncmp(zone_name, "data", 4) == 0){
-        // Try to retrieve the solution time - this may fail if an older
-        // version of the F5 file is used
-        if (!(sscanf(zone_name, "data t=%lf", &solution_time) == 1)){
-          solution_time = 0.0;
-        }
+//       if (strcmp(zone_name, "components") == 0){
+//         void *vdata;
+//         if (file->getZoneData(&zone_name, &var_names, &dtype,
+//                               &vdata, &dim1, &dim2)){
+//           element_comp_num = (int*)vdata;
+//         }
+//       }
+//       else if (strcmp(zone_name, "connectivity") == 0){
+//         num_elements = dim1;
+//         conn_dim = dim2;
+//         void *vdata;
+//         if (file->getZoneData(&zone_name, &var_names, &dtype, 
+//                               &vdata, &dim1, &dim2)){
+//           conn = (int*)vdata;
+//         }
+//       }
+//       else if (strncmp(zone_name, "data", 4) == 0){
+//         // Try to retrieve the solution time - this may fail if an older
+//         // version of the F5 file is used
+//         if (!(sscanf(zone_name, "data t=%lf", &solution_time) == 1)){
+//           solution_time = 0.0;
+//         }
 
-        // Initialize the tecplot file with the variables
-        char *vars = new char[ strlen(var_names)+1 ];
-        strcpy(vars, var_names);
-        create_tec_file(data_info, vars,
-                        outfile, dir_name, FULL);
-        tec_init = 1;
-        delete [] vars;
+//         // Initialize the tecplot file with the variables
+//         char *vars = new char[ strlen(var_names)+1 ];
+//         strcpy(vars, var_names);
+//         create_tec_file(data_info, vars,
+//                         outfile, dir_name, FULL);
+//         tec_init = 1;
+//         delete [] vars;
  
-        // Retrieve the data
-        void *vdata;
-        if (file->getZoneData(&zone_name, &var_names, &dtype,
-                              &vdata, &dim1, &dim2)){
-          num_points = dim1;
-          num_variables = dim2;
-          if (dtype == FH5File::FH5_DOUBLE){
-            data = (double*)vdata;
-          }
-          else if (dtype == FH5File::FH5_FLOAT){
-            float_data = (float*)vdata;
-          }
-        }
-      }
-    } while (file->nextZone());
+//         // Retrieve the data
+//         void *vdata;
+//         if (file->getZoneData(&zone_name, &var_names, &dtype,
+//                               &vdata, &dim1, &dim2)){
+//           num_points = dim1;
+//           num_variables = dim2;
+//           if (dtype == FH5File::FH5_DOUBLE){
+//             data = (double*)vdata;
+//           }
+//           else if (dtype == FH5File::FH5_FLOAT){
+//             float_data = (float*)vdata;
+//           }
+//         }
+//       }
+//     } while (file->nextZone());
     
-    if (!(element_comp_num && conn && (data || float_data))){
-      fprintf(stderr, "Error, data, connectivity or \
-component numbers not defined in file\n");
-    }
+    
+//     // write the data to a tecplot file -----------------------------
+//     if (!(element_comp_num && conn && (data || float_data))){
+//       fprintf(stderr, "Error, data, connectivity or \
+// component numbers not defined in file\n");
+//     }
 
     // Set the element type to use
     ZoneType zone_type;
+    int convert[conn_dim];
     if (conn_dim == 2){      
       zone_type = FELINESEG; 
-    }
+      convert[0] = 0;
+      convert[1] = 1;
+  }
     else if (conn_dim == 8){ 
       zone_type = FEBRICK; 
+      convert[0] = 0;
+      convert[1]  = 1;
+      convert[2]  = 3;
+      convert[3]  = 2;
+      convert[4]  = 4;
+      convert[5]  = 5;
+      convert[6]  = 7;
+      convert[7]  = 6;
+
     }
     else {
       zone_type = FEQUADRILATERAL; 
+      convert[0] = 0;
+      convert[1] = 1;
+      convert[2] = 3;
+      convert[3] =  2;
+
     }
 
-    int num_comp = file->getNumComponents();
+    // int num_comp = file->getNumComponents();
 
+    
     int *reduced_points = new int[ num_points ];
     int *reduced_conn = new int[ conn_dim*num_elements ];
     double *reduced_data = NULL;
@@ -294,41 +408,55 @@ component numbers not defined in file\n");
       reduced_float_data = new float[ num_points ];      
     }
 
+    // fprintf(stderr, "num_elements:%d conn_dim:%d num_comp:%d num_points:%d\n",num_elements, conn_dim, num_comp, num_points );
+
     for ( int k = 0; k < num_comp; k++ ){
       // Count up the number of elements that use the connectivity
-      char *comp_name = file->getComponentName(k);
+      char *comp_name = loader->getComponentName(k);
       //printf("Converting zone %d: %s at time %g\n", 
       // k, comp_name, solution_time);
 
+      // fprintf(stderr, "k:%d comp_name:%s\n", k, comp_name);
+    
       memset(reduced_points, 0, num_points*sizeof(int));
       memset(reduced_conn, 0, conn_dim*num_elements*sizeof(int));
-
+      // fprintf(stderr, "  memset\n");
+      
+      // fprintf(stderr, "reduced_conn = [\n");
       int npts = 1, nelems = 0;
       // Count up the number of points/elements in this sub-domain
       for ( int i = 0; i < num_elements; i++ ){
         if (element_comp_num[i] == k){
           // Add this element to the reduced connectivity
+          // fprintf(stderr, "\n");
           for ( int j = 0; j < conn_dim; j++ ){
             int pt = conn[conn_dim*i + j];
+            
           
             // If a reduced numbering has not been applied to this point,
             // create a new number for it
+            // fprintf(stderr, "i:%d j:%d ", i,j);
+            // fprintf(stderr, "pt:%d  ", pt);
             if (reduced_points[pt] == 0){
               reduced_points[pt] = npts;
               npts++;
             }
           
             // Set the reduced connectivity
-            reduced_conn[conn_dim*nelems + j] = reduced_points[pt];
+            reduced_conn[conn_dim*nelems + convert[j]] = reduced_points[pt];
+            // fprintf(stderr,"npts:%d    r_conn:%d\n",  npts, reduced_conn[conn_dim*nelems + j] );
           }
           nelems++;
         }
       }
-
+      // fprintf(stderr, "]\n");
       // Since we started at npts = 1, we have one more point
       // than the actual number of points.
       npts--;
+      
+      // fprintf(stderr, "npts:%d \n", npts);
 
+      // fprintf(stderr, "reduced_conn = [\n");
       if (nelems > 0 && npts > 0){
         // Create the zone with the solution time
         create_fe_tec_zone(comp_name, zone_type, npts, nelems,
@@ -349,12 +477,18 @@ component numbers not defined in file\n");
               if (reduced_points[i] > 0){
                 reduced_float_data[reduced_points[i]-1] = 
                   float_data[i*num_variables + j];
+
+                // fprintf(stderr,"i:%d  data:%f\n",  i, reduced_float_data[reduced_points[i]-1] );
+
               }
             }
             write_tec_float_data(npts, reduced_float_data);
           }
         }
-      
+        // std::cout << "writting recuded conn" << std::endl;
+        // std::cout << conn_dim*num_elements << std::endl;
+        
+        
         // Now, write the connectivity
         write_con_data(reduced_conn);
       }
@@ -363,8 +497,9 @@ component numbers not defined in file\n");
     if (tec_init){
       close_tec_file();
     }
-    file->close();
-    file->decref();
+    // file->close();
+    // file->decref();
+    loader->decref();
 
     // Clean up memory
     delete [] reduced_points;
@@ -372,13 +507,13 @@ component numbers not defined in file\n");
     delete [] reduced_data;
 
     delete [] data;
-    delete [] conn;
-    delete [] element_comp_num;
+
+    // delete [] conn;
+    // delete [] element_comp_num;
 
     delete [] infile;
     delete [] outfile;
   }
-
   MPI_Finalize();
 
   return (0);
