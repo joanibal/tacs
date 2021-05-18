@@ -1883,6 +1883,10 @@ cdef class Assembler:
         # Evaluate the derivative of the functions
         self.ptr.addAdjointResXptSensProducts(alpha, num_adjoints, adjoints, dfdX)
 
+        for i in range(num_adjoints):
+            dfdX[i].beginSetValues(TACS_ADD_VALUES)
+            dfdX[i].endSetValues(TACS_ADD_VALUES)
+
         free(adjoints)
         free(dfdX)
 
