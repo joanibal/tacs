@@ -254,14 +254,30 @@ int main( int argc, char * argv[] ){
     double solution_time = 0.0;
     
     if (time_from_name){
-    
-      // remove the file extension from outfile
-      strcpy(&outfile[i], "");
+      
+      
+      // determine the index of just the filename
+      int j = strlen(infile);
+      for ( ; j > 0; j-- ){
+        if (infile[j] == '/'){ break; }     
+      }
+      char *filename = new char[i - j];
+      
+      // copy just the name of the file to a new string 
+      strcpy(filename , &infile[j]);
+      int k = 0;
+      for (; j < i; j++){
+        
+        filename[k] = infile[j];
+        k++;
+      }
       
       float time; 
-
+      printf(filename);
+      printf("\n");
       //from stack overflow https://stackoverflow.com/a/4073314/14227912
-      char *s = outfile; 
+      char *s = filename; 
+  
       while (*s && !isdigit(*s)) s++; 
       
       if (*s)
@@ -271,10 +287,6 @@ int main( int argc, char * argv[] ){
 
       }    
         
-      //put the file extension back   
-      strcpy(&outfile[i], ".plt");
-      
-      
       // cast the time taken from the file and set solution_time
       solution_time = (double)time;
       printf("solution_time %f\n", solution_time); 
