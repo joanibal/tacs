@@ -1021,8 +1021,23 @@ int TACSMeshLoader::scanBDFFile( const char * file_name ){
       int node;
       double x, y, z;
 
-      if (strncmp(line[0], "$       Shell", 13) == 0){
-        // A standard icem output - description of each
+      if (strncmp(line[0], "$CDSCRPT", 8) == 0){
+        // A non-standard - pyLayout specific - description of the
+        // component. This is very useful for describing what the
+        // components actually are with a string.
+        // Again use a fixed width format
+        char comp[33];
+        strncpy(comp, &line[0][8], 16);
+        comp[16] = '\0';
+        int comp_num = atoi(comp)-1;
+        strncpy(comp, &line[0][24], 32);
+        comp[32] = '\0';
+        // Remove white space
+        if (comp_num >= 0 && comp_num < num_components){
+          sscanf(comp, "%s", &component_descript[33*comp_num]);
+        }
+      }
+      else if (strncmp(line[0], "$       Shell", 13) == 0){        // A standard icem output - description of each
         // component. This is very useful for describing what the
         // components actually are with a string.
         // Again use a fixed width format
@@ -1644,15 +1659,15 @@ TACSAssembler *TACSMeshLoader::createTACS( int vars_per_node,
     creator->setNodes(Xpts);
 
     // Free things that are no longer required
-    delete [] elem_node_ptr;   elem_node_ptr = NULL;
-    delete [] elem_node_conn;  elem_node_conn = NULL;
-    delete [] elem_component;  elem_component = NULL;
+    // delete [] elem_node_ptr;   elem_node_ptr = NULL;
+    // delete [] elem_node_conn;  elem_node_conn = NULL;
+    // delete [] elem_component;  elem_component = NULL;
 
-    // Free the boundary conditions
-    delete [] bc_nodes;   bc_nodes = NULL;
-    delete [] bc_ptr;     bc_ptr = NULL;
-    delete [] bc_vars;    bc_vars = NULL;
-    delete [] bc_vals;    bc_vals = NULL;
+    // // Free the boundary conditions
+    // delete [] bc_nodes;   bc_nodes = NULL;
+    // delete [] bc_ptr;     bc_ptr = NULL;
+    // delete [] bc_vars;    bc_vars = NULL;
+    // delete [] bc_vals;    bc_vals = NULL;
   }
 
   // This call must occur on all processor
