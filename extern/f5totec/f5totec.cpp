@@ -231,25 +231,55 @@ int main( int argc, char * argv[] ){
 
 
     const char *ename, *evars;
-    int edim1, edim2;
+    int num_nodes_elements, num_vals_elements;
     float *edata;
-    loader->getElementData(&ename, &evars, &edim1, &edim2, &edata);
+    loader->getElementData(&ename, &evars, &num_nodes_elements, &num_vals_elements, &edata);
 
 
 
     int num_comp = loader->getNumComponents();
     int num_points = num_nodes_continuous;
-    // int conn_dim = edim2;
     int conn_dim = 8;
     
-    // fprintf(stderr, "edim1:%d edim2:%d\n", edim1, edim2);
-    // fprintf(stderr, "num_nodes_continuous:%d num_vals_continuous:%d\n", num_nodes_continuous, num_vals_continuous);
 
     double *data = NULL;
-    float *float_data = cdata;
     int *element_comp_num = comp_nums;
     
-    int num_variables = num_vals_continuous;
+    
+    // combine the continus variables and the element based variables
+    int num_variables = num_vals_continuous + num_vals_elements ;
+    float *float_data = new float[ num_variables*num_points ];
+    memset(float_data, 0, num_variables*num_points*sizeof(float));
+    
+    
+    for (int v = 0; v < num_vals_continuous; v++){
+      for ( int k = 0; k < num_points; k++ ){
+        float_data[v + k*num_variables] = cdata[v + k*num_vals_continuous];
+      }
+    }
+    
+    float *counts = new float[ num_points ];
+    memset(counts, 0, num_points*sizeof(float));
+    for ( int j = 0; j < ptr[num_elements]; j++ ){
+      counts[conn[j]] += 1.0;
+    }
+    for ( int i = 0; i < num_points; i++ ){
+      if (counts[i] != 0.0){
+        counts[i] = 1.0/counts[i];
+      }
+    }
+    
+    //  For each component, average the nodal data
+    for ( int v = num_vals_continuous; v < num_variables; v++ ){
+      // Nodally average the data
+      int j = v - num_vals_continuous;
+      for ( int k = 0; k < ptr[num_elements]; k++ ){
+        // data[conn[k]] += counts[conn[k]]*edata[edim2*k + j];
+        // fprintf(stderr, "v:%d pt:%d , %d  idx:%d  edata: j:%d k:%d idx:%d", v, conn[k],conn[k]*num_variables, j, k, k*num_vals_elements + j );
+        float_data[v + conn[k]*num_variables] += counts[conn[k]]*edata[k*num_vals_elements + j];
+      }
+    }
+    
 
     double solution_time = 0.0;
     
@@ -294,89 +324,20 @@ int main( int argc, char * argv[] ){
     }
     
     //  Initialize the tecplot file with the variables
-    char *vars = new char[ strlen(cvars)+1 ];
-    strcpy(vars, cvars);
+    char *vars = new char[ strlen(cvars)+ 2 + strlen(evars)+1 ];
+    
+    // this is the only way i could figure out how to concatenate these strings...
+    strcpy(&vars[0], cvars);
+    vars[strlen(cvars)] = ',';
+    vars[strlen(cvars)+1] = ' ';
+    strcpy(&vars[strlen(cvars)+ 2], evars);
+    
     create_tec_file(data_info, vars,
                 outfile, dir_name, FULL);
     tec_init = 1;
     delete [] vars;
 
   
-    // ------------------------------------------------------
-    // Retrieve all the data from the file including the 
-    // variables, connectivity and component numbers
-//     double solution_time = 0.0;
-//     int *element_comp_num = NULL;
-//     int *conn = NULL;
-//     double *data = NULL;
-//     float *float_data = NULL;
-//     int conn_dim = 0, num_elements = 0, num_points = 0, num_variables = 0;
-//     file->firstZone();
-//     do {
-//       // Find the zone corresponding to all the data
-//       const char *zone_name, *var_names;
-//       FH5File::FH5DataType dtype;
-//       int dim1, dim2;
-
-//       if (!file->getZoneInfo(&zone_name, &var_names, &dtype, &dim1, &dim2)){
-//         fprintf(stderr, "Error, zone not defined\n");
-//         break;
-//       }
-    
-//       if (strcmp(zone_name, "components") == 0){
-//         void *vdata;
-//         if (file->getZoneData(&zone_name, &var_names, &dtype,
-//                               &vdata, &dim1, &dim2)){
-//           element_comp_num = (int*)vdata;
-//         }
-//       }
-//       else if (strcmp(zone_name, "connectivity") == 0){
-//         num_elements = dim1;
-//         conn_dim = dim2;
-//         void *vdata;
-//         if (file->getZoneData(&zone_name, &var_names, &dtype, 
-//                               &vdata, &dim1, &dim2)){
-//           conn = (int*)vdata;
-//         }
-//       }
-//       else if (strncmp(zone_name, "data", 4) == 0){
-//         // Try to retrieve the solution time - this may fail if an older
-//         // version of the F5 file is used
-//         if (!(sscanf(zone_name, "data t=%lf", &solution_time) == 1)){
-//           solution_time = 0.0;
-//         }
-
-//         // Initialize the tecplot file with the variables
-//         char *vars = new char[ strlen(var_names)+1 ];
-//         strcpy(vars, var_names);
-//         create_tec_file(data_info, vars,
-//                         outfile, dir_name, FULL);
-//         tec_init = 1;
-//         delete [] vars;
- 
-//         // Retrieve the data
-//         void *vdata;
-//         if (file->getZoneData(&zone_name, &var_names, &dtype,
-//                               &vdata, &dim1, &dim2)){
-//           num_points = dim1;
-//           num_variables = dim2;
-//           if (dtype == FH5File::FH5_DOUBLE){
-//             data = (double*)vdata;
-//           }
-//           else if (dtype == FH5File::FH5_FLOAT){
-//             float_data = (float*)vdata;
-//           }
-//         }
-//       }
-//     } while (file->nextZone());
-    
-    
-//     // write the data to a tecplot file -----------------------------
-//     if (!(element_comp_num && conn && (data || float_data))){
-//       fprintf(stderr, "Error, data, connectivity or \
-// component numbers not defined in file\n");
-//     }
-
     // Set the element type to use
     ZoneType zone_type;
     int convert[conn_dim];
@@ -432,7 +393,6 @@ int main( int argc, char * argv[] ){
     
       memset(reduced_points, 0, num_points*sizeof(int));
       memset(reduced_conn, 0, conn_dim*num_elements*sizeof(int));
-      // fprintf(stderr, "  memset\n");
       
       // fprintf(stderr, "reduced_conn = [\n");
       int npts = 1, nelems = 0;
@@ -466,7 +426,6 @@ int main( int argc, char * argv[] ){
       // than the actual number of points.
       npts--;
       
-      // fprintf(stderr, "npts:%d \n", npts);
 
       // fprintf(stderr, "reduced_conn = [\n");
       if (nelems > 0 && npts > 0){
@@ -490,15 +449,12 @@ int main( int argc, char * argv[] ){
                 reduced_float_data[reduced_points[i]-1] = 
                   float_data[i*num_variables + j];
 
-                // fprintf(stderr,"i:%d  data:%f\n",  i, reduced_float_data[reduced_points[i]-1] );
 
               }
             }
             write_tec_float_data(npts, reduced_float_data);
           }
         }
-        // std::cout << "writting recuded conn" << std::endl;
-        // std::cout << conn_dim*num_elements << std::endl;
         
         
         // Now, write the connectivity

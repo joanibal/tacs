@@ -182,6 +182,50 @@ cdef class HeatFlux(Function):
         free(surf)
         return
 
+cdef class KSHeatFlux(Function):
+    cdef TACSKSHeatFlux *kshptr
+    def __cinit__(self, Assembler assembler, list elem_index,
+                  list surfaces, double ksWeight, double alpha=1.0):
+        """
+        Wrap the function KSHeatFlux
+        """
+        cdef int num_elems = len(elem_index)
+        cdef int *elem_ind = NULL
+        cdef int *surf = NULL
+
+        elem_ind = <int*>malloc(num_elems*sizeof(int));
+        surf = <int*>malloc(num_elems*sizeof(int));
+
+        for i in range(num_elems):
+            elem_ind[i] = <int>elem_index[i]
+            surf[i] = <int>surfaces[i]
+
+        self.kshptr = new TACSKSHeatFlux(assembler.ptr, elem_ind, surf, num_elems, ksWeight, alpha)
+        self.ptr = self.kshptr
+        self.ptr.incref()
+        return
+
+    def setKSHeatFluxType(self, ftype='discrete'):
+        if ftype == 'discrete':
+            self.kshptr.setKSHeatFluxType(KS_HEATFLUX_DISCRETE)
+        elif ftype == 'continuous':
+            self.kshptr.setKSHeatFluxType(KS_HEATFLUX_CONTINUOUS)
+        elif ftype == 'pnorm-discrete':
+            self.kshptr.setKSHeatFluxType(PNORM_HEATFLUX_DISCRETE)
+        elif ftype == 'pnorm-continuous':
+            self.kshptr.setKSHeatFluxType(PNORM_HEATFLUX_CONTINUOUS)
+        return
+
+    def setKSRefType(self, ftype='min'):
+        if ftype == 'min':
+            self.kshptr.setKSRefType(KS_REF_MIN)
+        elif ftype == 'max':
+            self.kshptr.setKSRefType(KS_REF_MAX)
+        return
+
+    def setParameter(self, double ksparam):
+        self.kshptr.setParameter(ksparam)
+
 # cdef class DisplacementIntegral(Function):
 #     cdef TACSDisplacementIntegral *dptr
 #     def __cinit__(self, Assembler assembler, dirs):

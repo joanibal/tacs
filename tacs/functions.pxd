@@ -44,7 +44,7 @@ cdef extern from "TACSAverageTemperature.h":
         TACSAverageTemperature(TACSAssembler*, TacsScalar)
 
 cdef extern from "TACSKSTemperature.h":
-    enum KSTemperatureType"TACSKTemperature::KSTemperatureType":
+    enum KSTemperatureType"TACSKSTemperature::KSTemperatureType":
         KS_TEMPERATURE_DISCRETE"TACSKSTemperature::DISCRETE"
         KS_TEMPERATURE_CONTINUOUS"TACSKSTemperature::CONTINUOUS"
         PNORM_TEMPERATURE_DISCRETE"TACSKSTemperature::PNORM_DISCRETE"
@@ -58,7 +58,7 @@ cdef extern from "TACSKSTemperature.h":
         void setMaxFailOffset(TacsScalar)
 
 cdef extern from "TACSKSFailure.h":
-    enum KSFailureType"TACSKFailure::KSFailureType":
+    enum KSFailureType"TACSKSFailure::KSFailureType":
         KS_FAILURE_DISCRETE"TACSKSFailure::DISCRETE"
         KS_FAILURE_CONTINUOUS"TACSKSFailure::CONTINUOUS"
         PNORM_FAILURE_DISCRETE"TACSKSFailure::PNORM_DISCRETE"
@@ -92,6 +92,27 @@ cdef extern from "TACSInducedFailure.h":
 cdef extern from "TACSHeatFlux.h":
     cdef cppclass TACSHeatFlux(TACSFunction):
         TACSHeatFlux(TACSAssembler*, int*, int*, int)
+
+
+cdef extern from "TACSKSHeatFlux.h":
+    enum KSHeatFluxType"TACSKSHeatFlux::KSHeatFluxType":
+        KS_HEATFLUX_DISCRETE"TACSKSHeatFlux::DISCRETE"
+        KS_HEATFLUX_CONTINUOUS"TACSKSHeatFlux::CONTINUOUS"
+        PNORM_HEATFLUX_DISCRETE"TACSKSHeatFlux::PNORM_DISCRETE"
+        PNORM_HEATFLUX_CONTINUOUS"TACSKSHeatFlux::PNORM_CONTINUOUS"
+    
+    enum KSRefType"TACSKSHeatFlux::KSRefType":
+        KS_REF_MIN"TACSKSHeatFlux::MIN"
+        KS_REF_MAX"TACSKSHeatFlux::MAX"
+
+    cdef cppclass TACSKSHeatFlux(TACSFunction):
+        TACSKSHeatFlux(TACSAssembler*, int*, int*, int, double, double)
+        void setKSHeatFluxType(KSHeatFluxType ftype)
+        void setKSRefType(KSRefType ftype)
+        double getParameter()
+        void setParameter(double)
+        void setMaxFailOffset(TacsScalar)
+
 
 # cdef extern from "TACSDisplacementIntegral.h":
 #     cdef cppclass TACSDisplacementIntegral(TACSFunction):

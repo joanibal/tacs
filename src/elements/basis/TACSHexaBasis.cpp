@@ -46,7 +46,7 @@ static void getFaceTangents( int face, double t[] ){
   else if (face == 5){
     // X - Y plane makes a Z normal direction
     t[0] = 1.0;  t[1] = 0.0;  t[2] = 0.0;
-    t[3] = 0.0;  t[4] = 0.0;  t[5] = 1.0;
+    t[3] = 0.0;  t[4] = 1.0;  t[5] = 0.0;
   }
 }
 
