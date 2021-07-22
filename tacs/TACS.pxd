@@ -496,6 +496,10 @@ cdef extern from "TACSAssembler.h":
         # Set the number of threads
         void setNumThreads(int t)
 
+        void getBCs(int *_num_bcs, const int **_nodes,
+                    const int **_vars, const TacsScalar  **_values)
+
+
 cdef class Assembler:
     cdef TACSAssembler *ptr
 

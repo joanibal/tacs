@@ -1464,6 +1464,33 @@ cdef class Assembler:
         self.ptr.setBCs(vec.ptr)
         return
 
+
+    def getBCNodes(self):
+        """
+        Return the boundary conditions associated with the file
+        """
+        cdef int num_bcs
+        cdef const int *_nodes
+        cdef const int *_vars
+        cdef const TacsScalar *_values
+
+        self.ptr.getBCs(&num_bcs, &_nodes, &_vars, &_values)
+
+        cdef np.ndarray nodes = np.zeros(num_bcs, dtype=np.int)
+        if _nodes is not NULL:
+            for i in range(num_bcs):
+                nodes[i] = _nodes[i]
+        
+        # cdef np.ndarray bvars = np.zeros(ptr[-1], dtype=np.int)
+        # cdef np.ndarray vals = np.zeros(ptr[-1], dtype)
+        # if _vars is not NULL and _values is not NULL:
+        #     for i in range(ptr[-1]):
+        #         bvars[i] = _vars[i]
+        #         vals[i] = _values[i]
+
+        return nodes
+
+
     def createSchurMat(self, OrderingType order_type=TACS_AMD_ORDER):
         """
         Create a parallel matrix specially suited for finite-element

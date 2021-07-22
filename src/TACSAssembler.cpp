@@ -777,6 +777,20 @@ void TACSAssembler::addBCs( int nnodes, const int *nodes,
   }
 }
 
+/*
+  Retrieve the boundary conditions that have been set locally
+
+  output:
+  nodes:       the global node numbers
+  vars:        node unknown numbers to apply boundary conditions
+  values:      the values of the boundary conditions to apply
+*/
+void TACSAssembler::getBCs(  int *_num_bcs,
+                       const int **_nodes,
+                       const int **_vars,
+                       const TacsScalar **_values ){
+  *_num_bcs = bcMap->getBCs(_nodes, _vars, _values);
+}
 /**
   Add Dirichlet boundary conditions for the initial conditions.
 

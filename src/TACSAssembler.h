@@ -175,6 +175,11 @@ class TACSAssembler : public TACSObject {
 
   // Set the Dirichlet boundary conditions to the state vector
   void setBCs( TACSVec *vec );
+  
+  // get the Dirichlet boundary conditions from the BC map
+  void getBCs( TACSVec *vec );
+  void getBCs( int *_num_bcs, const int **_nodes, const int **_vars,
+              const TacsScalar **_values );
 
   // Methods for manipulating internal variable values
   // -------------------------------------------------
